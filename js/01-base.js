@@ -91,7 +91,7 @@ function pedir(o){
       let i;
       if(f.type === "select"){ i = document.createElement("select"); (f.options || []).forEach(op => { const x = document.createElement("option"); const [val, txt] = Array.isArray(op) ? op : [op, op]; x.value = val; x.textContent = txt; i.appendChild(x); }); }
       else if(f.type === "textarea"){ i = document.createElement("textarea"); i.rows = 6; }
-      else { i = document.createElement("input"); i.type = f.type === "check" ? "checkbox" : "text"; i.autocomplete = "off"; if(f.max) i.maxLength = f.max; if(f.num) i.inputMode = "numeric"; if(f.ph) i.placeholder = f.ph; }
+      else { i = document.createElement("input"); i.type = f.type === "check" ? "checkbox" : f.type === "date" ? "date" : "text"; i.autocomplete = "off"; if(f.max) i.maxLength = f.max; if(f.num) i.inputMode = "numeric"; if(f.ph) i.placeholder = f.ph; }
       i.id = "pd_" + f.id;
       if(f.type === "check"){ i.checked = !!f.value; l.className = "chk"; l.append(i, document.createTextNode(" " + f.label)); }
       else { if(f.value != null) i.value = f.value; l.append(document.createTextNode(f.label), i); }

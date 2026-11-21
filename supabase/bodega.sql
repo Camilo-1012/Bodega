@@ -42,6 +42,7 @@ alter table public.bodega_eventos drop constraint if exists bodega_eventos_guia_
 alter table public.bodega_eventos add constraint bodega_eventos_guia_ok check ((tipo in ('REP','ZONA','LOTE','LOTE_CERRADO')) = (guia is null));
 create index if not exists bodega_eventos_srv on public.bodega_eventos (srv_at);
 create index if not exists bodega_eventos_guia on public.bodega_eventos (guia);
+create index if not exists bodega_eventos_at on public.bodega_eventos (at);   -- histórico por fechas
 drop index if exists public.bodega_eventos_tipo;
 create index if not exists bodega_eventos_cat on public.bodega_eventos (tipo) where tipo in ('REP','ZONA','LOTE','LOTE_CERRADO');
 
@@ -99,7 +100,8 @@ on conflict (user_id) do update set nombre = excluded.nombre, rol = excluded.rol
 
 select m.nombre, m.rol, u.email from public.bodega_miembros m join auth.users u on u.id = m.user_id;
 
--- Tamaño: ~600 paquetes/día ≈ 2 500 eventos/día ≈ 0,8 MB/día. El plan gratuito (500 MB) alcanza para más de un año.
--- (Opcional, más adelante) Limpieza de eventos de paquetes cerrados hace más de 180 días, una vez al mes:
--- delete from public.bodega_eventos e where e.guia is not null and e.srv_at < now() - interval '180 days'
---   and exists (select 1 from public.bodega_eventos x where x.guia = e.guia and x.tipo in ('ENTREGADO','FALTANTE'));
+-- HISTÓRICO: no se borra nada. Es la prueba de quién recibió, quién despachó a quién y quién liquidó.
+-- Tamaño: ~600 paquetes/día ≈ 2 500 eventos/día ≈ 0,8 MB/día ≈ 290 MB/año (con índices, algo más).
+-- El plan gratuito (500 MB de base de datos) alcanza para ~1 año y medio. Antes de llegar: pasar a Pro (incluye
+-- copias de seguridad diarias) o exportar a Excel los años cerrados (Consultar → Excel por fechas) y guardarlos.
+-- Ver el tamaño: select pg_size_pretty(pg_total_relation_size('public.bodega_eventos'));

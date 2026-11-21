@@ -158,3 +158,25 @@ $("tmConnect").onclick = async () => {
 };
 $("tmSync").onclick = () => syncNow(true).then(pintarEquipo);
 $("tmDisc").onclick = async () => { if(await confirmar("Desconectar la nube", "Este celular deja de compartir lecturas. Lo que ya tiene se queda aquí.", "Desconectar", true)) desconectarNube(); pintarEquipo(); };
+
+/* ---- Histórico (consultas directas a la nube, sin mezclarlas con los datos del celular) ---- */
+const COLS_HIST = COLS + ",srv_at";
+// Una guía: exacta, o que termine en lo escrito (4+ caracteres). Máximo 500 movimientos.
+async function nubeGuia(txt){
+  const t = String(txt).replace(/[^A-Za-z0-9-]/g, "").toUpperCase(); if(t.length < 4) return [];
+  const exacta = await sb(`bodega_eventos?select=${COLS_HIST}&guia=eq.${encodeURIComponent(t)}&order=at.asc&limit=500`) || [];
+  if(exacta.length) return exacta;
+  return await sb(`bodega_eventos?select=${COLS_HIST}&guia=like.*${encodeURIComponent(t)}&order=guia.asc,at.asc&limit=500`) || [];
+}
+// Todos los movimientos con hora de lectura (at) en [desde, hasta), por páginas de 1 000 (orden seq).
+async function nubeRango(desde, hasta, progreso){
+  const out = []; let seq = 0;
+  for(;;){
+    const rows = await sb(`bodega_eventos?select=${COLS_HIST}&at=gte.${encodeURIComponent(desde)}&at=lt.${encodeURIComponent(hasta)}&seq=gt.${seq}&order=seq.asc&limit=${LOTE_BAJAR}`) || [];
+    out.push(...rows);
+    if(rows.length) seq = rows[rows.length - 1].seq;
+    if(progreso && rows.length) progreso(out.length);
+    if(rows.length < LOTE_BAJAR || out.length > 300000) break;
+  }
+  return out;
+}

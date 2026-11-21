@@ -1,7 +1,7 @@
 /* Service worker: guarda la app en el celular para que abra y funcione sin internet.
    Al publicar cambios, sube el número de CACHE (igual a APP_VERSION en js/11-arranque.js).
    Los archivos nuevos se agregan a CORE (y a APP_FILES en js/00-acceso.js si son de js/): una prueba lo verifica. */
-const CACHE = "bodega-v1.1";
+const CACHE = "bodega-v1.2";
 const CORE = [
   "./", "index.html", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon.png",

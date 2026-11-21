@@ -38,7 +38,10 @@ async function conectarNube(context, nube){
       if(p.get("tipo")){ const t = p.get("tipo").replace(/^in\.\(|\)$/g, "").split(","); rows = rows.filter(e => t.includes(e.tipo)); }
       if(p.get("srv_at")) rows = rows.filter(e => e.srv_at >= p.get("srv_at").replace("gte.", ""));
       if(p.get("seq")) rows = rows.filter(e => e.seq > +p.get("seq").replace("gt.", ""));
+      if(p.get("guia")){ const g = p.get("guia"); rows = g.startsWith("eq.") ? rows.filter(e => e.guia === g.slice(3)) : rows.filter(e => e.guia && e.guia.endsWith(g.replace("like.*", ""))); }
+      for(const f of p.getAll("at")){ const v = f.replace(/^(gte|lt)\./, ""); rows = rows.filter(e => f.startsWith("gte.") ? e.at >= v : e.at < v); }
       rows.sort((a, b) => a.seq - b.seq); if(p.get("order") === "seq.desc") rows.reverse();
+      if(/^(guia\.asc,)?at\.asc$/.test(p.get("order") || "")) rows.sort((a, b) => (a.guia || "").localeCompare(b.guia || "") || a.at.localeCompare(b.at));
       if(p.get("limit")) rows = rows.slice(0, +p.get("limit"));
       return json(route, 200, rows);
     }

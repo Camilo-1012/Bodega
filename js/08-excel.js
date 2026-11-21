@@ -124,3 +124,29 @@ function excelLote(lid){
     {nombre:"Recibidos", anchos:ANCHOS_PAQ, filas:[CAB_PAQ, ...delLote.filter(p => p.recLote === lid).map(filaPaq)]}
   ], `lote-${String(l.nombre).replace(/[^\w-]+/g, "_")}.xlsx`);
 }
+/* Histórico por fechas (desde la nube): auditoría de recepción, despachos, devoluciones y liquidaciones. */
+function excelHistorico(evs, de, a, rid){
+  const anul = new Set(evs.filter(e => e.tipo === "ANULAR").map(e => e.d && e.d.ref));
+  let lista = evs.filter(e => e.guia && e.tipo !== "ANULAR" && !anul.has(e.id)).sort(ordenEv);
+  if(rid) lista = lista.filter(e => (e.d || {}).rid === rid || (e.tipo === "ASIGNADO" && (e.d || {}).de === rid));
+  const res = new Map(), clave = (dia, r) => dia + "|" + r;
+  const fila = (dia, r) => res.get(clave(dia, r)) || (res.set(clave(dia, r), {dia, r, rec:new Set(), asig:new Set(), dev:new Set(), ent:new Set(), fal:new Set()}), res.get(clave(dia, r)));
+  lista.forEach(e => {
+    const dia = diaDe(e.at), r = (e.d || {}).rid || "";
+    const k = {RECIBIDO:"rec", ASIGNADO:"asig", DEVUELTO:"dev", ENTREGADO:"ent", FALTANTE:"fal"}[e.tipo];
+    if(k) fila(dia, k === "rec" ? "" : r)[k].add(e.guia);
+  });
+  const filasRes = [...res.values()].sort((x, y) => x.dia.localeCompare(y.dia) || repNombre(x.r).localeCompare(repNombre(y.r), "es"));
+  const porLote = new Map();
+  lista.filter(e => e.tipo === "RECIBIDO").forEach(e => { const l = (e.d || {}).lid || ""; const s = porLote.get(l) || new Set(); s.add(e.guia); porLote.set(l, s); });
+  const nom = rid ? repNombre(rid) : "todos";
+  descargarXlsx([
+    {nombre:"Resumen por día", anchos:[12,22,11,11,11,11,11], filas:[["Fecha","Repartidor","Recibidos","Asignados","Devueltos","Entregados","Faltantes"],
+      ...filasRes.map(f => [f.dia, f.r ? repNombre(f.r) : "Bodega (recepción)", f.rec.size || "", f.asig.size || "", f.dev.size || "", f.ent.size || "", f.fal.size || ""]),
+      [], ["Periodo", `${de} a ${a}`], ["Repartidor", nom], ["Generado", fechaHora(new Date().toISOString()) + " por " + USER.name], ["Origen", syncOn() ? "Nube (todo el histórico)" : "Solo este celular"]]},
+    {nombre:"Movimientos", anchos:[15,22,22,34,18,16,11,15], filas:[["Fecha y hora","Guía","Movimiento","Detalle","Repartidor","Usuario","Celular","Subido a la nube"],
+      ...lista.map(e => [fechaHora(e.at), e.guia, TXT_EV[e.tipo] || e.tipo, detalleEv(e), (e.d || {}).rid ? repNombre(e.d.rid) : "", e.por || "", e.dev || "", e.srv_at ? fechaHora(new Date(e.srv_at).toISOString()) : ""])]},
+    {nombre:"Recepción por lote", anchos:[28,10,16,11], filas:[["Lote","Empresa","Creado","Recibidos"],
+      ...[...porLote].map(([lid, s]) => { const l = LOTES.get(lid) || {}; return [l.nombre || (lid ? "Lote " + lid.slice(0, 6) : "Sin lote"), l.emp || "", fechaHora(l.at), s.size]; })]}
+  ], `historico-${de}_a_${a}${rid ? "-" + nom.replace(/[^\wáéíóúñÁÉÍÓÚÑ-]+/g, "_") : ""}.xlsx`);
+}

@@ -22,7 +22,9 @@ function verPaquete(g){
     ${ZONAS.size ? `<div class="row" style="align-items:center">${chipZona(zonaDe(p))}<span class="hint">${esc(ubicTxt(p))}</span><button type="button" class="small" id="conUbic">Ubicación</button></div>` : ""}
     ${p.conflicto ? `<p class="alerta">${esc(p.conflicto)}</p><div class="row" id="conResolver"></div>` : ""}
     ${p.estado === "BODEGA" ? `<p class="hint">En bodega hace ${diasDesde(p.recibido)} día(s)${p.motivo ? " · última devolución: " + esc(p.motivo) : ""}.</p>` : ""}
+    <button type="button" class="small" id="conNube">Historial completo (nube)</button>
     <ol class="linea">${todos.filter(e => e.tipo !== "ANULAR").map(e => `<li class="${anul.has(e.id) ? "anulado" : ""}"><time>${esc(fechaHora(e.at))}</time> <b>${esc(TXT_EV[e.tipo] || e.tipo)}</b> ${esc(detalleEv(e))}<span class="hint"> · ${esc(e.por || "")}${e.sub ? "" : " · sin subir"}${anul.has(e.id) ? " · deshecha" : ""}</span></li>`).join("")}</ol></div>`;
+  $("conNube").onclick = () => historialNube(g);
   if($("conUbic")) $("conUbic").onclick = async () => { const u = guardarUbicacion(g, await pedirUbicacion(g)); if(u){ verPaquete(g); pintarTodo(); } };
   if(p.conflicto){
     // Resolver: confirmar quién la tiene de verdad (queda como reasignación explícita).
@@ -82,3 +84,46 @@ function pintarConsultar(){
     r.filas.map(f => `<tr><td>${esc(f.nombre)}</td><td>${f.asignados}</td><td>${f.devueltos}</td><td>${f.entregados}</td><td>${f.faltantes}</td><td>${f.enRuta}</td></tr>`).join("") + `</tbody></table>` : `<p class="hint">Sin movimientos de repartidores hoy.</p>`);
   if(conFiltro) listaConsulta(conFiltro);
 }
+
+/* ============ Histórico en la nube ============
+   El celular guarda 30 días; la nube guarda TODO (no se borra nada: ver supabase/bodega.sql).
+   Sirve para auditar: quién recibió, quién despachó y a qué repartidor, quién liquidó, desde qué celular y cuándo subió. */
+const filaHist = e => ({...e, at: new Date(e.at).toISOString()});
+async function historialNube(txt){
+  if(!syncOn()){ toast("Conecta la nube (☰ → Equipo) para ver el histórico completo."); return; }
+  if(!navigator.onLine){ toast("Sin internet: el histórico completo necesita señal."); return; }
+  mostrarListado("Historial en la nube", `<p class="hint">Buscando ${esc(txt)}…</p>`);
+  try{
+    const rows = (await nubeGuia(txt)).map(filaHist);
+    if(!rows.length){ $("ltBody").innerHTML = `<p class="hint">No hay registros de «${esc(txt)}» en la nube.</p>`; return; }
+    const porGuia = new Map(); rows.forEach(e => { const l = porGuia.get(e.guia); l ? l.push(e) : porGuia.set(e.guia, [e]); });
+    $("ltBody").innerHTML = [...porGuia].map(([g, evs]) => {
+      const anul = new Set(evs.filter(e => e.tipo === "ANULAR").map(e => e.d.ref));
+      return `<div class="ficha"><b class="guiaG">${esc(g)}</b><ol class="linea">${evs.filter(e => e.tipo !== "ANULAR").sort(ordenEv).map(e =>
+        `<li class="${anul.has(e.id) ? "anulado" : ""}"><time>${esc(fechaHora(e.at))}</time> <b>${esc(TXT_EV[e.tipo] || e.tipo)}</b> ${esc(detalleEv(e))}<span class="hint"> · ${esc(e.por || "")} · celular ${esc(e.dev || "?")}${e.srv_at ? " · subido " + esc(fechaHora(e.srv_at)) : ""}${anul.has(e.id) ? " · deshecha" : ""}</span></li>`).join("")}</ol></div>`;
+    }).join("") + (rows.length >= 500 ? `<p class="hint">Se muestran los primeros 500 movimientos: escribe la guía completa.</p>` : "");
+  }catch(e){ $("ltBody").innerHTML = `<p class="uerr">No se pudo consultar la nube (${esc(e.message || e)}).</p>`; }
+}
+$("hisGuia").onclick = async () => {
+  const v = await pedir({title:"Historial de una guía", msg:"Guía completa o sus últimos 4+ números. Se busca en todo el histórico de la nube.", fields:[{id:"g", label:"Guía", type:"text", max:40}],
+    yes:"Buscar", check: v => v.g.replace(/\s+/g, "").length >= 4 ? "" : "Escribe al menos 4 caracteres."});
+  if(v) historialNube(v.g.replace(/\s+/g, "").toUpperCase());
+};
+$("hisExcel").onclick = async () => {
+  const d = hoy(), reps = [...REPS.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  const v = await pedir({title:"Excel del histórico", msg: syncOn() ? "Movimientos de la nube entre las dos fechas (incluidas)." : "⚠ La nube no está conectada: solo saldrá lo que tiene este celular (últimos 30 días).",
+    fields:[{id:"de", label:"Desde", type:"date", value: d.slice(0, 8) + "01"}, {id:"a", label:"Hasta", type:"date", value: d},
+      {id:"r", label:"Repartidor", type:"select", options:[["", "Todos (incluye recepción)"], ...reps.map(r => [r.rid, r.nombre + (r.activo ? "" : " (inactivo)")])]}],
+    yes:"Descargar", check: v => !v.de || !v.a ? "Elige las dos fechas." : v.de > v.a ? "«Desde» debe ser antes de «Hasta»." : ""});
+  if(!v) return;
+  const desde = new Date(v.de + "T00:00:00"), hasta = new Date(v.a + "T00:00:00"); hasta.setDate(hasta.getDate() + 1);
+  let evs;
+  try{
+    if(syncOn()){
+      if(!navigator.onLine){ toast("Sin internet: el histórico necesita señal."); return; }
+      toast("Descargando el histórico…");
+      evs = (await nubeRango(desde.toISOString(), hasta.toISOString(), n => toast(`Descargando… ${n} movimientos`))).map(filaHist);
+    } else evs = [...EV.values()].filter(e => e.at >= desde.toISOString() && e.at < hasta.toISOString());
+  }catch(e){ toast("No se pudo descargar (" + (e.message || e) + ")."); return; }
+  excelHistorico(evs, v.de, v.a, v.r);
+};
