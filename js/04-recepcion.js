@@ -6,7 +6,8 @@ function chipEstado(p){
   return `<span class="chip ${cls}">${esc(ESTADOS[p.estado] || "—")}${p.estado === "RUTA" ? " · " + esc(repNombre(p.rid)) : ""}</span>`;
 }
 function liPaq(p, extra){
-  const marcas = [p.emp ? `<span class="chip">${esc(p.emp)}</span>` : "", p.nov.length ? `<span class="chip warn">Novedad</span>` : "",
+  const z = ZONAS.size ? zonaDe(p) : null;
+  const marcas = [ZONAS.size ? chipZona(z) : "", p.emp ? `<span class="chip">${esc(p.emp)}</span>` : "", p.nov.length ? `<span class="chip warn">Novedad</span>` : "",
     p.conflicto ? `<span class="chip bad">Conflicto</span>` : "", p.devs ? `<span class="chip">Devuelto ${p.devs}×</span>` : ""].join("");
   return `<li class="paq" data-guia="${esc(p.guia)}"><div><b>${esc(p.guia)}</b> ${chipEstado(p)}${marcas}</div>${extra ? `<div class="hint">${extra}</div>` : ""}</li>`;
 }
@@ -41,6 +42,8 @@ function pintarRecibir(){
   const l = loteActual();
   $("recInfo").hidden = !l;
   if(!l) return;
+  $("recUbicLbl").hidden = !zonasActivas().length; $("recUbic").checked = prefs.pedirUbic !== false;
+  pintarZonasRecibir();
   const s = statsLote(l.lid);
   kpis($("recKpis"), [[s.esperado || "—", "esperados"], [s.rec, "recibidos", "ok"], [s.esperado ? s.faltan : "—", "faltan", s.faltan ? "warn" : ""], [s.sobr, "fuera del listado", s.sobr ? "warn" : ""]]);
   const cerrado = !!l.cerrado;
@@ -51,6 +54,7 @@ function pintarRecibir(){
   const recientes = paquetes(p => p.recLote === l.lid).sort((a, b) => b.recibido.localeCompare(a.recibido));
   pintarLista($("recLista"), recientes.map(p => liPaq(p, "Recibido " + fechaHora(p.recibido) + (p.espLote === l.lid || !s.esp ? "" : " · fuera del listado"))), 30, "Aún no hay paquetes recibidos en este lote.");
 }
+$("recUbic").onchange = e => { prefs.pedirUbic = e.target.checked; savePrefs(); };
 $("recLote").onchange = e => { prefs.lote = e.target.value || null; savePrefs(); pintarRecibir(); };
 $("recNuevo").onclick = async () => {
   const v = await pedir({title:"Nuevo lote de recepción", msg:"Un lote es cada llegada de paquetes (un camión, un corte del día). Sirve para cuadrar lo esperado contra lo recibido.",
@@ -77,10 +81,15 @@ async function recibirGuia(g){
   if(p && (p.estado === "ENTREGADO" || p.estado === "FALTANTE")){
     if(!await preguntarEnEscaner(`${g} figura como ${ESTADOS[p.estado].toLowerCase()}. ¿Volver a ingresarla a la bodega?`, "Ingresar")) return {tipo:"mal", txt:"Omitida: figura como " + ESTADOS[p.estado].toLowerCase()};
   }
-  const e = registrar("RECIBIDO", g, {lid: l.lid, emp: l.emp});
+  const e = registrar("RECIBIDO", g, {lid: l.lid, emp: l.emp}), evs = [e.id];
   const enListado = p && p.espLote === l.lid;
-  const txt = enListado ? "Recibida · en el listado" : p && p.espLote ? "Recibida · estaba en el listado de otro lote" : s.esp ? "Recibida · NO está en el listado" : "Recibida";
-  return {tipo:"ok", txt, evs:[e.id], cls: s.esp && !enListado ? "aviso" : ""};
+  let txt = enListado ? "Recibida · en el listado" : p && p.espLote ? "Recibida · estaba en el listado de otro lote" : s.esp ? "Recibida · NO está en el listado" : "Recibida";
+  // Zonificación: si hay zonas y el paquete no tiene ubicación, se pide calle y carrera (o la zona) en el mismo paso.
+  if(zonasActivas().length){
+    if(prefs.pedirUbic !== false && !tieneUbic(paq(g))){ const u = guardarUbicacion(g, await pedirUbicacion(g)); if(u) evs.push(u.id); }
+    const z = zonaDe(paq(g)); txt += " → " + (z ? z.nombre : "sin zona");
+  }
+  return {tipo:"ok", txt, evs, cls: s.esp && !enListado ? "aviso" : ""};
 }
 const cfgRecibir = () => ({
   titulo:"Recibir en bodega", alLeer: recibirGuia,

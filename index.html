@@ -26,6 +26,7 @@
       <button type="button" class="small hbtn" id="btnInstall" hidden>Instalar la app</button>
       <button type="button" class="small hbtn" id="btnUser"><span id="btnUserName">Usuario</span></button>
       <button type="button" class="small hbtn" id="btnReps">Repartidores</button>
+      <button type="button" class="small hbtn" id="btnZonas">Zonas</button>
       <button type="button" class="small hbtn" id="btnTeam">Equipo (nube)</button>
       <button type="button" class="small hbtn" id="btnExcel">Excel del día</button>
       <button type="button" class="small hbtn" id="btnMore">Más</button>
@@ -61,7 +62,9 @@
         <button type="button" id="recFaltan">Ver faltantes</button>
         <button type="button" id="recCerrar">Cerrar lote</button>
       </div>
+      <label class="chk" id="recUbicLbl" hidden><input type="checkbox" id="recUbic"> Pedir calle y carrera al recibir (para la zona)</label>
       <p class="hint" id="recNota"></p>
+      <div id="recZonas"></div>
       <h3>Últimas lecturas</h3>
       <ul class="lista" id="recLista"></ul>
     </div>
@@ -78,6 +81,7 @@
         <button type="button" id="desEscribir">Escribir guía</button>
       </div>
       <button type="button" class="dark" id="desPlanilla">Planilla de salida</button>
+      <div id="desZonas"></div>
       <h3>Lleva (en ruta, por liquidar)</h3>
       <ul class="lista" id="desLista"></ul>
     </div>
@@ -120,6 +124,7 @@
       <button type="button" id="conRuta">En ruta</button>
       <button type="button" id="conConflictos">Conflictos <span class="chip warn" id="conNConf" hidden></span></button>
       <button type="button" id="conNovedades">Con novedad</button>
+      <button type="button" id="conZonas">Por zona</button>
     </div>
     <div id="conListaBox"></div>
     <h3>Resumen de hoy</h3>
@@ -145,6 +150,18 @@
     <div class="scAsk" id="scAsk" hidden role="alertdialog" aria-labelledby="scAskTxt">
       <p id="scAskTxt"></p>
       <div class="row"><button type="button" id="scAskNo">Omitir</button><button type="button" class="primary" id="scAskYes">Sí</button></div>
+    </div>
+    <div class="scUbic" id="scUbic" hidden role="group" aria-labelledby="ubTit">
+      <p id="ubTit" style="margin:0"><b>Ubicación de <span id="ubGuia"></span></b> · solo números, sin placa</p>
+      <div class="row ubNums">
+        <label for="ubCl">Calle<input id="ubCl" inputmode="numeric" autocomplete="off" maxlength="6"></label>
+        <label for="ubKr">Carrera<input id="ubKr" inputmode="numeric" autocomplete="off" maxlength="6"></label>
+      </div>
+      <p class="hint" id="ubPrev" aria-live="polite"></p>
+      <p class="uerr" id="ubErr" role="alert"></p>
+      <div class="row"><button type="button" id="ubSaltar">Saltar</button><button type="button" class="primary" id="ubOk">Guardar ubicación</button></div>
+      <p class="hint" style="margin:0">O toca la zona:</p>
+      <div class="zbtns" id="ubZonas"></div>
     </div>
     <div class="row">
       <input id="scIn" placeholder="O escribe la guía" autocomplete="off" aria-label="Guía escrita">
@@ -175,6 +192,16 @@
     <p class="hint" id="rpNota"></p>
     <div id="rpList" style="display:flex;flex-direction:column;gap:8px"></div>
     <button type="button" class="primary" id="rpAdd">Agregar repartidor</button>
+  </form>
+</dialog>
+
+<!-- ================= ZONAS ================= -->
+<dialog id="dlgZonas" aria-labelledby="znTitle">
+  <form method="dialog">
+    <div class="dlgHead"><h2 id="znTitle">Zonas</h2><button type="submit" class="small">Cerrar</button></div>
+    <p class="hint" id="znNota"></p>
+    <div id="znList" style="display:flex;flex-direction:column;gap:8px"></div>
+    <button type="button" class="primary" id="znAdd">Agregar zona</button>
   </form>
 </dialog>
 

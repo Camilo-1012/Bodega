@@ -89,9 +89,9 @@ function pedir(o){
     (o.fields || []).forEach(f => {
       const l = document.createElement("label");
       let i;
-      if(f.type === "select"){ i = document.createElement("select"); (f.options || []).forEach(op => { const x = document.createElement("option"); x.value = x.textContent = op; i.appendChild(x); }); }
+      if(f.type === "select"){ i = document.createElement("select"); (f.options || []).forEach(op => { const x = document.createElement("option"); const [val, txt] = Array.isArray(op) ? op : [op, op]; x.value = val; x.textContent = txt; i.appendChild(x); }); }
       else if(f.type === "textarea"){ i = document.createElement("textarea"); i.rows = 6; }
-      else { i = document.createElement("input"); i.type = f.type === "check" ? "checkbox" : "text"; i.autocomplete = "off"; if(f.max) i.maxLength = f.max; }
+      else { i = document.createElement("input"); i.type = f.type === "check" ? "checkbox" : "text"; i.autocomplete = "off"; if(f.max) i.maxLength = f.max; if(f.num) i.inputMode = "numeric"; if(f.ph) i.placeholder = f.ph; }
       i.id = "pd_" + f.id;
       if(f.type === "check"){ i.checked = !!f.value; l.className = "chk"; l.append(i, document.createTextNode(" " + f.label)); }
       else { if(f.value != null) i.value = f.value; l.append(document.createTextNode(f.label), i); }
@@ -100,7 +100,8 @@ function pedir(o){
     $("pdYes").textContent = o.yes || "Aceptar"; $("pdYes").className = o.danger ? "danger" : "primary";
     $("pdNo").hidden = o.noCancel === true;
     const form = d.querySelector("form");
-    const fin = v => { form.onsubmit = null; $("pdNo").onclick = null; d.onclose = null; if(d.open) d.close(); res(v); };
+    // Se cierra con «cancel» (tecla Atrás/Esc) y no con «close»: ese evento llega después y podría cancelar el formulario siguiente.
+    const fin = v => { form.onsubmit = null; $("pdNo").onclick = null; d.oncancel = null; if(d.open) d.close(); res(v); };
     form.onsubmit = e => {
       e.preventDefault();
       const v = {}; (o.fields || []).forEach(f => { const el = $("pd_" + f.id); v[f.id] = f.type === "check" ? el.checked : el.value; });
@@ -109,7 +110,7 @@ function pedir(o){
       fin(v);
     };
     $("pdNo").onclick = () => fin(null);
-    d.onclose = () => res(null);
+    d.oncancel = e => { e.preventDefault(); fin(null); };
     d.showModal();
     const first = box.querySelector("input,select,textarea"); if(first) setTimeout(() => first.focus(), 50);
   });

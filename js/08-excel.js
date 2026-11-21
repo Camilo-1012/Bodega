@@ -84,9 +84,9 @@ function descargarXlsx(hojas, nombre){
 
 /* ============ Reportes de la bodega ============ */
 const filaPaq = p => [p.guia, p.emp, ESTADOS[p.estado] || "", p.rid ? repNombre(p.rid) : p.ultRid ? repNombre(p.ultRid) : "",
-  (LOTES.get(p.recLote || p.espLote) || {}).nombre || "", fechaHora(p.recibido), fechaHora(p.asignado), fechaHora(p.cerrado), p.devs || 0, p.motivo, p.nov.map(n => n.nota).join("; "), p.conflicto];
-const CAB_PAQ = ["Guía","Empresa","Estado","Repartidor","Lote","Recibido","Asignado","Cerrado","Devoluciones","Último motivo","Novedades","Conflicto"];
-const ANCHOS_PAQ = [22,10,20,18,22,13,13,13,12,20,30,30];
+  (zonaDe(p) || {}).nombre || "", p.cl == null ? "" : txtVia(p.cl), p.kr == null ? "" : txtViaKr(p.kr), (LOTES.get(p.recLote || p.espLote) || {}).nombre || "", fechaHora(p.recibido), fechaHora(p.asignado), fechaHora(p.cerrado), p.devs || 0, p.motivo, p.nov.map(n => n.nota).join("; "), p.conflicto];
+const CAB_PAQ = ["Guía","Empresa","Estado","Repartidor","Zona","Calle","Carrera","Lote","Recibido","Asignado","Cerrado","Devoluciones","Último motivo","Novedades","Conflicto"];
+const ANCHOS_PAQ = [22,10,20,18,18,9,9,22,13,13,13,12,20,30,30];
 function excelDia(dia){
   dia = dia || hoy();
   const r = resumenDia(dia);
@@ -99,14 +99,19 @@ function excelDia(dia){
       [{v:"Total", b:true}, {v:tot.asignados, b:true}, {v:tot.devueltos, b:true}, {v:tot.entregados, b:true}, {v:tot.faltantes, b:true}, {v:tot.enRuta, b:true}],
       [], ["Recibidos en bodega", r.recibidos], ["En bodega ahora", paquetes(p => p.estado === "BODEGA").length]]},
     {nombre:"Paquetes del día", anchos:ANCHOS_PAQ, filas:[CAB_PAQ, ...tocadosHoy.map(filaPaq)]},
+    {nombre:"Por zona", anchos:[24,32,18,11,11,14], filas:[["Zona","Rango","Repartidor habitual","En bodega","En ruta","Entregados hoy"],
+      ...[...zonasActivas().map(z => [z.zid, z.nombre, rangoTxt(z), repNombre(z.rid)]), ["", "Sin zona", "", ""]].map(([zid, n, rg, rp]) => {
+        const de = p => ((zonaDe(p) || {}).zid || "") === zid;
+        return [n, rg, zid && rp !== "—" ? rp : "", paquetes(p => p.estado === "BODEGA" && de(p)).length, paquetes(p => p.estado === "RUTA" && de(p)).length, paquetes(p => p.estado === "ENTREGADO" && diaDe(p.cerrado) === dia && de(p)).length];
+      })]},
     {nombre:"En bodega", anchos:ANCHOS_PAQ, filas:[CAB_PAQ, ...paquetes(p => p.estado === "BODEGA").sort((a, b) => a.recibido.localeCompare(b.recibido)).map(filaPaq)]},
     {nombre:"Movimientos", anchos:[13,22,22,30,16], filas:[["Hora","Guía","Movimiento","Detalle","Usuario"], ...evHoy.map(e => [fechaHora(e.at), e.guia, TXT_EV[e.tipo] || e.tipo, detalleEv(e), e.por])]}
   ], `bodega-${dia}.xlsx`);
 }
 function excelPlanilla(rid){
   const x = delRepartidor(rid), n = repNombre(rid);
-  descargarXlsx([{nombre:"Planilla " + n, anchos:[6,22,12,30,13], filas:[["#","Guía","Empresa","Novedad","Asignado"],
-    ...x.enRuta.map((p, i) => [i + 1, p.guia, p.emp, p.nov.map(v => v.nota).join("; "), fechaHora(p.asignado)]),
+  descargarXlsx([{nombre:"Planilla " + n, anchos:[6,22,18,9,9,12,30,13], filas:[["#","Guía","Zona","Calle","Carrera","Empresa","Novedad","Asignado"],
+    ...ordenPlanilla(x.enRuta).map((p, i) => [i + 1, p.guia, nomZona(p), txtVia(p.cl), txtViaKr(p.kr), p.emp, p.nov.map(v => v.nota).join("; "), fechaHora(p.asignado)]),
     [], [{v:"Total", b:true}, {v:x.enRuta.length, b:true}], ["Repartidor", n], ["Despachó", USER.name], ["Fecha", fechaHora(new Date().toISOString())]]}],
     `planilla-${n.replace(/[^\wáéíóúñÁÉÍÓÚÑ-]+/g, "_")}-${hoy()}.xlsx`);
 }

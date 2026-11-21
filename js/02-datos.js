@@ -4,7 +4,7 @@
    otro celular se acomodan en su lugar cuando llegan, y no hay sobrescrituras que pierdan información.
    Se guarda en IndexedDB (aguanta decenas de miles de eventos; localStorage no). */
 "use strict";
-const TIPOS = ["REP","LOTE","LOTE_CERRADO","ESPERADO","RECIBIDO","NOVEDAD","ASIGNADO","DEVUELTO","ENTREGADO","FALTANTE","ANULAR"];
+const TIPOS = ["REP","ZONA","LOTE","LOTE_CERRADO","ESPERADO","RECIBIDO","NOVEDAD","UBICACION","ASIGNADO","DEVUELTO","ENTREGADO","FALTANTE","ANULAR"];
 const ESTADOS = {ESPERADO:"Esperado (sin recibir)", BODEGA:"En bodega", RUTA:"En ruta", ENTREGADO:"Entregado", FALTANTE:"Faltante"};
 const RETENER_DIAS = 30;   // en el celular: paquetes cerrados (entregados/faltantes) hace más de 30 días se quitan
 
@@ -12,6 +12,7 @@ const EV = new Map();        // id → evento
 const POR_GUIA = new Map();  // guía → [eventos]
 const PAQ = new Map();       // guía → estado calculado
 const REPS = new Map();      // rid → {rid, nombre, activo}
+const ZONAS = new Map();     // zid → {zid, nombre, color, cl:[desde,hasta], kr:[desde,hasta], rid, activa} (ver js/10-zonas.js)
 const LOTES = new Map();     // lid → {lid, nombre, emp, esperado, cerrado, at}
 let idb = null, idbFalla = false;
 
@@ -46,7 +47,7 @@ function calcPaq(guia){
   const evs = (POR_GUIA.get(guia) || []).slice().sort(ordenEv);
   const anulados = new Set(evs.filter(e => e.tipo === "ANULAR").map(e => e.d.ref));
   const p = {guia, emp:"", estado:"", espLote:"", recLote:"", rid:"", ultRid:"", recibido:"", asignado:"", cerrado:"",
-    devs:0, motivo:"", nov:[], conflicto:"", sinRecibir:false, ult:"", evs:[]};
+    devs:0, motivo:"", nov:[], conflicto:"", sinRecibir:false, ult:"", cl:null, kr:null, zidManual:"", evs:[]};
   for(const e of evs){
     if(e.tipo === "ANULAR" || anulados.has(e.id)) continue;
     p.evs.push(e); p.ult = e.at;
@@ -70,6 +71,11 @@ function calcPaq(guia){
       case "ENTREGADO": p.conflicto = ""; p.estado = "ENTREGADO"; p.cerrado = e.at; p.ultRid = d.rid || p.rid; break;
       case "FALTANTE": p.conflicto = ""; p.estado = "FALTANTE"; p.cerrado = e.at; p.ultRid = d.rid || p.rid; p.rid = ""; break;
       case "NOVEDAD": p.nov.push({at: e.at, nota: d.nota, por: e.por}); break;
+      // Ubicación para la zona: solo número de calle y de carrera (sin placa, Ley 1581) o una zona elegida a mano.
+      case "UBICACION":
+        if(d.zid){ p.zidManual = d.zid; p.cl = p.kr = null; }
+        else { p.cl = Number.isFinite(d.cl) ? d.cl : null; p.kr = Number.isFinite(d.kr) ? d.kr : null; p.zidManual = ""; }
+        break;
     }
   }
   if(!p.evs.length) PAQ.delete(guia); else PAQ.set(guia, p);
@@ -80,6 +86,9 @@ function aplicarCatalogo(e){
   if(e.tipo === "REP"){
     const r = REPS.get(d.rid);
     if(!r || r.at <= e.at) REPS.set(d.rid, {rid: d.rid, nombre: d.nombre, activo: d.activo !== false, at: e.at});
+  } else if(e.tipo === "ZONA"){
+    const z = ZONAS.get(d.zid);
+    if(!z || z.at <= e.at) ZONAS.set(d.zid, {zid: d.zid, nombre: d.nombre, color: d.color || "", cl: d.cl || [null, null], kr: d.kr || [null, null], rid: d.rid || "", activa: d.activa !== false, at: e.at});
   } else if(e.tipo === "LOTE" || e.tipo === "LOTE_CERRADO"){
     // Pueden llegar en desorden desde otros celulares: se decide por la hora de cada evento.
     const l = LOTES.get(d.lid) || {lid: d.lid, nombre: "Lote", emp: "", esperado: 0, at: e.at, datosAt: "", cerradoAt: "", abiertoAt: "", cerrado: ""};
@@ -133,7 +142,7 @@ function aplicarRemotos(lista){
   if(!guardar.length) return 0;
   guias.forEach(calcPaq);
   // Un cambio de nombre de repartidor cambia el texto de los conflictos: se recalculan los que tengan.
-  if(lista.some(r => r.tipo === "REP")) [...PAQ.values()].filter(p => p.conflicto).forEach(p => calcPaq(p.guia));
+  if(lista.some(r => r.tipo === "REP" || r.tipo === "ZONA")) [...PAQ.values()].filter(p => p.conflicto).forEach(p => calcPaq(p.guia));
   idbPutMuchos(guardar);
   if(ajenos) avisar("nube");
   return ajenos;

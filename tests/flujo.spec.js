@@ -6,7 +6,7 @@ const A = require("./ayuda");
 test("archivos de la app: versión, caché y lista de carga coinciden", async () => {
   const raiz = path.join(__dirname, "..");
   const sw = fs.readFileSync(path.join(raiz, "sw.js"), "utf8"), acc = fs.readFileSync(path.join(raiz, "js/00-acceso.js"), "utf8");
-  const arr = fs.readFileSync(path.join(raiz, "js/10-arranque.js"), "utf8");
+  const arr = fs.readFileSync(path.join(raiz, "js/11-arranque.js"), "utf8");
   const ver = /APP_VERSION = "([^"]+)"/.exec(arr)[1];
   expect(/CACHE = "bodega-v([^"]+)"/.exec(sw)[1]).toBe(ver);
   const core = JSON.parse("[" + /const CORE = \[([\s\S]*?)\];/.exec(sw)[1] + "]");

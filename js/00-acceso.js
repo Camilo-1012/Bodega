@@ -8,7 +8,7 @@
 const DB_KEY = "bodega.users.v1", SES_KEY = "bodega.session.v1";
 const ITER = 150000, MAX_USERS = 6, FREE_TRIES = 5;
 // Archivos de la app, en el orden en que deben ejecutarse (ver LEEME.md → «Estructura del código»).
-const APP_FILES = ["js/01-base.js","js/02-datos.js","js/03-escaner.js","js/04-recepcion.js","js/05-despacho.js","js/06-devolucion.js","js/07-consulta.js","js/08-excel.js","js/09-sync.js","js/10-arranque.js"];
+const APP_FILES = ["js/01-base.js","js/02-datos.js","js/03-escaner.js","js/04-recepcion.js","js/05-despacho.js","js/06-devolucion.js","js/07-consulta.js","js/08-excel.js","js/09-sync.js","js/10-zonas.js","js/11-arranque.js"];
 const q = id => document.getElementById(id);
 const ls = {
   get(k){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; }catch(e){ return null; } },

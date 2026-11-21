@@ -1,7 +1,7 @@
 /* Service worker: guarda la app en el celular para que abra y funcione sin internet.
-   Al publicar cambios, sube el número de CACHE (igual a APP_VERSION en js/10-arranque.js).
+   Al publicar cambios, sube el número de CACHE (igual a APP_VERSION en js/11-arranque.js).
    Los archivos nuevos se agregan a CORE (y a APP_FILES en js/00-acceso.js si son de js/): una prueba lo verifica. */
-const CACHE = "bodega-v1.0";
+const CACHE = "bodega-v1.1";
 const CORE = [
   "./", "index.html", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon.png",
@@ -9,7 +9,7 @@ const CORE = [
   "fonts/barlow-condensed-latin-600-normal.woff2", "fonts/barlow-condensed-latin-700-normal.woff2",
   "css/app.css", "scan/zxing.min.js",
   "js/00-acceso.js", "js/01-base.js", "js/02-datos.js", "js/03-escaner.js", "js/04-recepcion.js", "js/05-despacho.js",
-  "js/06-devolucion.js", "js/07-consulta.js", "js/08-excel.js", "js/09-sync.js", "js/10-arranque.js"
+  "js/06-devolucion.js", "js/07-consulta.js", "js/08-excel.js", "js/09-sync.js", "js/10-zonas.js", "js/11-arranque.js"
 ];
 self.addEventListener("install", e => {
   // cache:"reload" evita guardar copias viejas de la caché HTTP. No se activa sola: espera «Actualizar» (skipWaiting).

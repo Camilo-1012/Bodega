@@ -1,7 +1,7 @@
 /* Arranque: versión, navegación entre secciones, menú, repartidores, actualizaciones y carga inicial de datos.
    Al publicar: subir el mismo número aquí (APP_VERSION) y en sw.js (CACHE). */
 "use strict";
-const APP_VERSION = "1.0";
+const APP_VERSION = "1.1";
 
 /* ---- Secciones ---- */
 const VISTAS = ["vRecibir", "vDespachar", "vDevolver", "vConsultar"];

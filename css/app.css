@@ -466,7 +466,7 @@ li.lec.mal span{color:var(--bad)}
 .tb{width:100%;border-collapse:collapse;font-size:14px}
 .tb th,.tb td{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left}
 .tb td:not(:first-child),.tb th:not(:first-child){text-align:right}
-.planilla .tb td:nth-child(2),.planilla .tb td:nth-child(3),.planilla .tb td:nth-child(4),.planilla .tb th{text-align:left}
+.planilla .tb td:nth-child(n+2),.planilla .tb th{text-align:left}
 .firma{margin-top:28px}
 /* Impresión: solo la planilla */
 @media print{
@@ -476,3 +476,19 @@ li.lec.mal span{color:var(--bad)}
   :root{--ink:#000;--surface:#fff;--bg:#fff;--line:#999;color-scheme:light}
 }
 #desPlanilla,#devCerrar,#recNuevo{width:100%}
+/* Zonas (v1.1) */
+.chip.zona{background:var(--zc);color:#fff;border-color:var(--zc)}
+.chip.zsin{border-style:dashed}
+.zdot{display:inline-block;width:12px;height:12px;border-radius:50%;background:var(--zc);margin-right:6px;vertical-align:middle}
+.zgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px}
+.zcell{flex-direction:column;gap:2px;min-height:58px;border-left:6px solid var(--zc,var(--line));padding:6px}
+.zcell b{font:700 22px/1 var(--display)}
+.zcell span{font-size:12px;font-weight:500;color:var(--muted)}
+.zcell.suya{background:var(--ink);color:var(--bg)}
+.zcell.suya span{color:var(--accent)}
+.zcell.sin{border-left-style:dashed}
+.scUbic{border:2px solid var(--accent);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px}
+.ubNums input{font-size:22px;text-align:center;font-weight:700}
+.zbtns{display:flex;flex-wrap:wrap;gap:6px}
+.zbtn{background:var(--zc);color:#fff;border-color:var(--zc)}
+.lec .zona{margin-top:2px}

@@ -64,13 +64,14 @@ test("dos celulares: lo que lee uno lo ve el otro, y un conflicto sin señal se 
   await a.context.close(); await b.context.close();
 });
 
-test("una cuenta sin rol de administrador no puede crear repartidores en la nube (el resto sí sube)", async ({ browser }) => {
+test("una cuenta sin rol de administrador no puede crear repartidores ni zonas en la nube (el resto sí sube)", async ({ browser }) => {
   const nube = N.crearNube();
   const b = await celular(browser, nube, "Ana");
   await conectar(b.page, "despacho@b.co", "clave2");
   await A.agregarRep(b.page, "Intruso");
   await A.nuevoLote(b.page);
   await b.page.click("#recEscribir"); await A.responder(b.page, { g: "PERM000001" });
+  await b.page.evaluate(() => registrar("ZONA", null, {zid: "zx", nombre: "Zx", color: "", cl: [1, 2], kr: [null, null], activa: true}));
   await sincronizar(b.page);
   expect(nube.eventos.map(e => e.tipo).sort()).toEqual(["LOTE", "RECIBIDO"]);
   await expect(b.page.locator("#syncChip")).toContainText("Nube: revisar");

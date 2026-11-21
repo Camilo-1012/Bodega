@@ -16,6 +16,7 @@ function pintarDespachar(){
   botonesReps($("desReps"), r && r.rid, elegirRep);
   $("desInfo").hidden = !r; if(!r) return;
   const x = delRepartidor(r.rid);
+  pintarZonasDespacho(r.rid);
   kpis($("desKpis"), [[x.asignadosDia.length, "asignados hoy"], [x.enRuta.length, "en ruta (por liquidar)", "zone"], [x.devueltosDia.length, "devueltos hoy"], [x.entregadosDia.length, "entregados hoy", "ok"]]);
   pintarLista($("desLista"), x.enRuta.map(p => liPaq(p, "Asignado " + fechaHora(p.asignado) + (diaDe(p.asignado) !== hoy() ? " · de otro día" : ""))), 40, "Todavía no lleva paquetes.");
 }
@@ -36,8 +37,10 @@ async function asignarGuia(g){
     evs.push(registrar("RECIBIDO", g, {lid, emp: (p && p.emp) || (l && l.emp) || ""}).id);
   }
   evs.push(registrar("ASIGNADO", g, {rid: r.rid}).id);
-  const q = paq(g);
-  return {tipo:"ok", txt:"Para " + r.nombre + (q.nov.length ? " · tiene novedad: " + q.nov[q.nov.length - 1].nota : ""), evs, cls: q.nov.length ? "aviso" : ""};
+  const q = paq(g), z = zonaDe(q);
+  // Zona de otro repartidor: solo se avisa (puede ser un apoyo), no se bloquea.
+  const otraZona = z && z.rid && z.rid !== r.rid;
+  return {tipo:"ok", txt:"Para " + r.nombre + (z ? " · " + z.nombre : "") + (otraZona ? " · ⚠ zona de " + repNombre(z.rid) : "") + (q.nov.length ? " · tiene novedad: " + q.nov[q.nov.length - 1].nota : ""), evs, cls: q.nov.length || otraZona ? "aviso" : ""};
 }
 const cfgDespacho = () => ({
   titulo:"Despachar", alLeer: asignarGuia,
@@ -48,10 +51,13 @@ $("desScan").onclick = () => repActual() && abrirEscaner(cfgDespacho());
 $("desEscribir").onclick = () => repActual() && escribirGuia(cfgDespacho());
 
 /* ---- Planilla de salida ---- */
+// Planilla agrupada por zona (y dentro, por calle y carrera): así el repartidor carga en orden.
+const nomZona = p => (zonaDe(p) || {nombre: ZONAS.size ? "Sin zona" : ""}).nombre;
+function ordenPlanilla(lista){ return lista.slice().sort((a, b) => nomZona(a).localeCompare(nomZona(b), "es", {numeric:true}) || (a.cl ?? 999) - (b.cl ?? 999) || (a.kr ?? 999) - (b.kr ?? 999) || a.guia.localeCompare(b.guia)); }
 function textoPlanilla(r, x){
   const porEmp = {}; x.enRuta.forEach(p => { porEmp[p.emp || "Sin empresa"] = (porEmp[p.emp || "Sin empresa"] || 0) + 1; });
   return `Planilla de salida · ${r.nombre} · ${fechaHora(new Date().toISOString())}\nTotal: ${x.enRuta.length} (${Object.entries(porEmp).map(([k, v]) => k + " " + v).join(", ")})\n` +
-    x.enRuta.map((p, i) => `${i + 1}. ${p.guia}${p.emp ? " · " + p.emp : ""}`).join("\n");
+    ordenPlanilla(x.enRuta).map((p, i) => `${i + 1}. ${p.guia}${p.emp ? " · " + p.emp : ""}${nomZona(p) ? " · " + nomZona(p) : ""}`).join("\n");
 }
 $("desPlanilla").onclick = () => {
   const r = repActual(); if(!r) return;
@@ -61,8 +67,8 @@ $("desPlanilla").onclick = () => {
     `<div class="planilla" id="planilla">
       <p><b>Bodega · Planilla de salida</b><br>Repartidor: <b>${esc(r.nombre)}</b><br>Fecha: ${esc(fechaHora(new Date().toISOString()))} · Despachó: ${esc(USER.name)}</p>
       <p>Total: <b>${x.enRuta.length}</b> paquete(s) · ${Object.entries(porEmp).map(([k, v]) => esc(k) + ": " + v).join(" · ") || "—"}</p>
-      <table class="tb"><thead><tr><th>#</th><th>Guía</th><th>Empresa</th><th>Novedad</th></tr></thead><tbody>
-      ${x.enRuta.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.guia)}</td><td>${esc(p.emp)}</td><td>${esc(p.nov.map(n => n.nota).join("; "))}</td></tr>`).join("")}
+      <table class="tb"><thead><tr><th>#</th><th>Guía</th><th>Zona</th><th>Empresa</th><th>Novedad</th></tr></thead><tbody>
+      ${ordenPlanilla(x.enRuta).map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.guia)}</td><td>${esc(nomZona(p))}</td><td>${esc(p.emp)}</td><td>${esc(p.nov.map(n => n.nota).join("; "))}</td></tr>`).join("")}
       </tbody></table>
       <p class="firma">Recibí conforme: ______________________ &nbsp; C.C. ______________</p>
     </div>`,

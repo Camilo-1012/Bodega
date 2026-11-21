@@ -1,7 +1,7 @@
 /* Consulta: buscar una guía y ver su recorrido completo; listados de lo que está en bodega, en ruta, con conflicto o
    con novedad; resumen del día por repartidor. */
 "use strict";
-const TXT_EV = {ESPERADO:"En listado esperado", RECIBIDO:"Recibida en bodega", NOVEDAD:"Novedad", ASIGNADO:"Despachada", DEVUELTO:"Devuelta",
+const TXT_EV = {ESPERADO:"En listado esperado", RECIBIDO:"Recibida en bodega", NOVEDAD:"Novedad", UBICACION:"Ubicación", ASIGNADO:"Despachada", DEVUELTO:"Devuelta",
   ENTREGADO:"Entregada (liquidación)", FALTANTE:"Marcada faltante", ANULAR:"Lectura deshecha"};
 function detalleEv(e){
   const d = e.d || {};
@@ -11,6 +11,7 @@ function detalleEv(e){
     case "DEVUELTO": return "por " + repNombre(d.rid) + (d.motivo ? " · " + d.motivo : "");
     case "ENTREGADO": case "FALTANTE": return repNombre(d.rid);
     case "NOVEDAD": return d.nota || "";
+    case "UBICACION": return d.zid ? "zona elegida: " + ((ZONAS.get(d.zid) || {}).nombre || "zona borrada") : `Calle ${txtVia(d.cl) || "?"} · Carrera ${txtViaKr(d.kr) || "?"}`;
     default: return "";
   }
 }
@@ -18,9 +19,11 @@ function verPaquete(g){
   const p = paq(g); if(!p){ $("conRes").innerHTML = `<p class="hint">No hay registro de ${esc(g)} en este celular.</p>`; return; }
   const todos = (POR_GUIA.get(g) || []).slice().sort(ordenEv), anul = new Set(todos.filter(e => e.tipo === "ANULAR").map(e => e.d.ref));
   $("conRes").innerHTML = `<div class="ficha"><div><b class="guiaG">${esc(p.guia)}</b> ${chipEstado(p)} ${p.emp ? `<span class="chip">${esc(p.emp)}</span>` : ""}</div>
+    ${ZONAS.size ? `<div class="row" style="align-items:center">${chipZona(zonaDe(p))}<span class="hint">${esc(ubicTxt(p))}</span><button type="button" class="small" id="conUbic">Ubicación</button></div>` : ""}
     ${p.conflicto ? `<p class="alerta">${esc(p.conflicto)}</p><div class="row" id="conResolver"></div>` : ""}
     ${p.estado === "BODEGA" ? `<p class="hint">En bodega hace ${diasDesde(p.recibido)} día(s)${p.motivo ? " · última devolución: " + esc(p.motivo) : ""}.</p>` : ""}
     <ol class="linea">${todos.filter(e => e.tipo !== "ANULAR").map(e => `<li class="${anul.has(e.id) ? "anulado" : ""}"><time>${esc(fechaHora(e.at))}</time> <b>${esc(TXT_EV[e.tipo] || e.tipo)}</b> ${esc(detalleEv(e))}<span class="hint"> · ${esc(e.por || "")}${e.sub ? "" : " · sin subir"}${anul.has(e.id) ? " · deshecha" : ""}</span></li>`).join("")}</ol></div>`;
+  if($("conUbic")) $("conUbic").onclick = async () => { const u = guardarUbicacion(g, await pedirUbicacion(g)); if(u){ verPaquete(g); pintarTodo(); } };
   if(p.conflicto){
     // Resolver: confirmar quién la tiene de verdad (queda como reasignación explícita).
     const cand = [...new Set(p.evs.filter(e => e.tipo === "ASIGNADO").map(e => e.d.rid))].slice(-3);
@@ -63,6 +66,14 @@ $("conBodega").onclick = () => listaConsulta("bodega");
 $("conRuta").onclick = () => listaConsulta("ruta");
 $("conConflictos").onclick = () => listaConsulta("conf");
 $("conNovedades").onclick = () => listaConsulta("nov");
+$("conZonas").onclick = () => {
+  conFiltro = "";
+  const b = conteoZonas(p => p.estado === "BODEGA"), r = conteoZonas(p => p.estado === "RUTA");
+  const fila = (zid, nom, color, extra) => `<tr data-zid="${esc(zid)}"><td>${color ? `<span class="zdot" style="--zc:${esc(color)}"></span>` : ""}${esc(nom)}<div class="hint">${esc(extra)}</div></td><td>${zid ? b.m.get(zid) || 0 : b.sin}</td><td>${zid ? r.m.get(zid) || 0 : r.sin}</td></tr>`;
+  $("conListaBox").innerHTML = `<h3>Por zona</h3>` + (zonasActivas().length ? `<table class="tb zt"><thead><tr><th>Zona</th><th>En bodega</th><th>En ruta</th></tr></thead><tbody>` +
+    zonasActivas().map(z => fila(z.zid, z.nombre, z.color, rangoTxt(z) + (z.rid ? " · " + repNombre(z.rid) : ""))).join("") + fila("", "Sin zona", "", "Sin ubicación o fuera de todas las zonas") + `</tbody></table><p class="hint">Toca una zona para ver los paquetes en bodega.</p>` : `<p class="hint">No hay zonas. Créalas en el menú ☰ → Zonas.</p>`);
+  $("conListaBox").querySelectorAll("tr[data-zid]").forEach(tr => tr.onclick = () => listaZona(tr.dataset.zid, p => p.estado === "BODEGA"));
+};
 function pintarConsultar(){
   const nConf = paquetes(p => !!p.conflicto).length;
   $("conNConf").hidden = !nConf; $("conNConf").textContent = nConf;
