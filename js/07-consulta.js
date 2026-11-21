@@ -1,0 +1,73 @@
+/* Consulta: buscar una guía y ver su recorrido completo; listados de lo que está en bodega, en ruta, con conflicto o
+   con novedad; resumen del día por repartidor. */
+"use strict";
+const TXT_EV = {ESPERADO:"En listado esperado", RECIBIDO:"Recibida en bodega", NOVEDAD:"Novedad", ASIGNADO:"Despachada", DEVUELTO:"Devuelta",
+  ENTREGADO:"Entregada (liquidación)", FALTANTE:"Marcada faltante", ANULAR:"Lectura deshecha"};
+function detalleEv(e){
+  const d = e.d || {};
+  switch(e.tipo){
+    case "ESPERADO": case "RECIBIDO": return (LOTES.get(d.lid) || {}).nombre || (d.lid ? "" : "sin lote");
+    case "ASIGNADO": return "a " + repNombre(d.rid) + (d.reasigna && d.de ? " (antes la tenía " + repNombre(d.de) + ")" : "");
+    case "DEVUELTO": return "por " + repNombre(d.rid) + (d.motivo ? " · " + d.motivo : "");
+    case "ENTREGADO": case "FALTANTE": return repNombre(d.rid);
+    case "NOVEDAD": return d.nota || "";
+    default: return "";
+  }
+}
+function verPaquete(g){
+  const p = paq(g); if(!p){ $("conRes").innerHTML = `<p class="hint">No hay registro de ${esc(g)} en este celular.</p>`; return; }
+  const todos = (POR_GUIA.get(g) || []).slice().sort(ordenEv), anul = new Set(todos.filter(e => e.tipo === "ANULAR").map(e => e.d.ref));
+  $("conRes").innerHTML = `<div class="ficha"><div><b class="guiaG">${esc(p.guia)}</b> ${chipEstado(p)} ${p.emp ? `<span class="chip">${esc(p.emp)}</span>` : ""}</div>
+    ${p.conflicto ? `<p class="alerta">${esc(p.conflicto)}</p><div class="row" id="conResolver"></div>` : ""}
+    ${p.estado === "BODEGA" ? `<p class="hint">En bodega hace ${diasDesde(p.recibido)} día(s)${p.motivo ? " · última devolución: " + esc(p.motivo) : ""}.</p>` : ""}
+    <ol class="linea">${todos.filter(e => e.tipo !== "ANULAR").map(e => `<li class="${anul.has(e.id) ? "anulado" : ""}"><time>${esc(fechaHora(e.at))}</time> <b>${esc(TXT_EV[e.tipo] || e.tipo)}</b> ${esc(detalleEv(e))}<span class="hint"> · ${esc(e.por || "")}${e.sub ? "" : " · sin subir"}${anul.has(e.id) ? " · deshecha" : ""}</span></li>`).join("")}</ol></div>`;
+  if(p.conflicto){
+    // Resolver: confirmar quién la tiene de verdad (queda como reasignación explícita).
+    const cand = [...new Set(p.evs.filter(e => e.tipo === "ASIGNADO").map(e => e.d.rid))].slice(-3);
+    const box = $("conResolver");
+    cand.forEach(rid => { const b = document.createElement("button"); b.type = "button"; b.className = "small"; b.textContent = "La tiene " + repNombre(rid);
+      b.onclick = () => { registrar("ASIGNADO", g, {rid, reasigna: true, resuelve: true}); verPaquete(g); pintarTodo(); toast("Conflicto resuelto: la tiene " + repNombre(rid) + "."); }; box.appendChild(b); });
+  }
+}
+function buscar(txt){
+  const res = buscarGuias(txt);
+  if(!res.length){ $("conRes").innerHTML = `<p class="hint">Sin resultados para «${esc(txt)}». Escribe la guía completa o sus últimos 4+ números.</p>`; return; }
+  if(res.length === 1){ verPaquete(res[0].guia); return; }
+  $("conRes").innerHTML = `<ul class="lista">${res.map(p => liPaq(p)).join("")}</ul>`;
+  $("conRes").querySelectorAll("li[data-guia]").forEach(li => li.onclick = () => verPaquete(li.dataset.guia));
+}
+$("conForm").addEventListener("submit", e => { e.preventDefault(); const t = $("conGuia").value.trim(); if(t) buscar(t); });
+$("conScan").onclick = () => abrirEscaner({titulo:"Consultar guía", contador: () => "consultadas",
+  alLeer: async g => { setTimeout(() => { cerrarEscaner(); $("conGuia").value = g; buscar(g); }, 0); const p = paq(g); return p ? {tipo:"ok", txt: ESTADOS[p.estado] || ""} : {tipo:"mal", txt:"Sin registro"}; }});
+// Clic en cualquier paquete de una lista de Consulta: abre su recorrido.
+document.addEventListener("click", e => {
+  const li = e.target.closest("#conListaBox li[data-guia], #dlgLista li[data-guia]");
+  if(!li || e.target.closest("select,button")) return;
+  if($("dlgLista").open) $("dlgLista").close();
+  mostrarVista("vConsultar"); $("conGuia").value = li.dataset.guia; verPaquete(li.dataset.guia); $("conRes").scrollIntoView({block:"nearest"});
+});
+let conFiltro = "";
+function listaConsulta(f){
+  conFiltro = f;
+  const def = {
+    bodega: ["En bodega", p => p.estado === "BODEGA", p => `Hace ${diasDesde(p.recibido)} día(s)` + (p.motivo ? " · devuelta: " + esc(p.motivo) : ""), (a, b) => a.recibido.localeCompare(b.recibido)],
+    ruta: ["En ruta", p => p.estado === "RUTA", p => "Con " + esc(repNombre(p.rid)) + " desde " + fechaHora(p.asignado), (a, b) => repNombre(a.rid).localeCompare(repNombre(b.rid), "es")],
+    conf: ["Conflictos", p => !!p.conflicto, p => esc(p.conflicto), null],
+    nov: ["Con novedad", p => p.nov.length && p.estado !== "ENTREGADO", p => esc(p.nov.map(n => n.nota).join("; ")), null]
+  }[f];
+  const items = paquetes(def[1]); if(def[3]) items.sort(def[3]);
+  $("conListaBox").innerHTML = `<h3>${def[0]} (${items.length})</h3><ul class="lista" id="conLista"></ul>`;
+  pintarLista($("conLista"), items.map(p => liPaq(p, def[2](p))), 50, "Ninguno.");
+}
+$("conBodega").onclick = () => listaConsulta("bodega");
+$("conRuta").onclick = () => listaConsulta("ruta");
+$("conConflictos").onclick = () => listaConsulta("conf");
+$("conNovedades").onclick = () => listaConsulta("nov");
+function pintarConsultar(){
+  const nConf = paquetes(p => !!p.conflicto).length;
+  $("conNConf").hidden = !nConf; $("conNConf").textContent = nConf;
+  const r = resumenDia();
+  $("conResumen").innerHTML = `<p class="hint">Recibidos hoy: <b>${r.recibidos}</b></p>` + (r.filas.length ? `<table class="tb"><thead><tr><th>Repartidor</th><th>Asig.</th><th>Dev.</th><th>Entr.</th><th>Falt.</th><th>En ruta</th></tr></thead><tbody>` +
+    r.filas.map(f => `<tr><td>${esc(f.nombre)}</td><td>${f.asignados}</td><td>${f.devueltos}</td><td>${f.entregados}</td><td>${f.faltantes}</td><td>${f.enRuta}</td></tr>`).join("") + `</tbody></table>` : `<p class="hint">Sin movimientos de repartidores hoy.</p>`);
+  if(conFiltro) listaConsulta(conFiltro);
+}
